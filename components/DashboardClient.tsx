@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
@@ -7,7 +8,7 @@ import { Navbar } from './Navbar'
 import { BookmarkList } from './BookmarkList'
 import { AddBookmarkForm } from './AddBookmarkForm'
 import type { Bookmark } from '@/lib/types'
-import type { User } from '@supabase/supabase-js'
+// import type { User } from '@supabase/supabase-js'
 
 interface DashboardClientProps {
   userId: string
@@ -15,16 +16,26 @@ interface DashboardClientProps {
   userName: string
   userAvatar: string
 }
-
+interface NavbarUser {
+  id: string
+  email: string
+  user_metadata: {
+    full_name: string
+    avatar_url: string
+  }
+}
 export function DashboardClient({ userId, userEmail, userName, userAvatar }: DashboardClientProps) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
   const [loading, setLoading] = useState(true)
 
-  const user = {
-    id: userId,
-    email: userEmail,
-    user_metadata: { full_name: userName, avatar_url: userAvatar },
-  } as User
+  const user: NavbarUser = {
+  id: userId,
+  email: userEmail,
+  user_metadata: {
+    full_name: userName,
+    avatar_url: userAvatar,
+  },
+}
 
   // Initial load
   useEffect(() => {
