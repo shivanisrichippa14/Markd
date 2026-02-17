@@ -5,19 +5,10 @@ import { createClient } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { ThemeToggle } from './ThemeToggle'
-// import type { User } from '@supabase/supabase-js'
 
-interface NavbarUser {
-  id: string
-  email: string
-  user_metadata: {
-    full_name: string
-    avatar_url: string
-  }
-}
 
 interface NavbarProps {
-  user: NavbarUser
+  user: { id: string; email?: string; user_metadata: { full_name?: string; avatar_url?: string } }
 }
 
 export function Navbar({ user }: NavbarProps) {
@@ -83,8 +74,8 @@ export function Navbar({ user }: NavbarProps) {
               <img
                 src={avatarUrl}
                 alt={name}
-                
-                className="w-8 h-8 rounded-full object-cover ring-2 ring-border"
+                className="w-8 h-8 rounded-full object-cover ring-2"
+                style={{ ringColor: 'var(--border)' }}
               />
             ) : (
               <div
