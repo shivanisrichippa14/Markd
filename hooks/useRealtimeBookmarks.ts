@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabaseClient'
 import type { Bookmark } from '@/lib/types'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 
 interface UseRealtimeBookmarksOptions {
   userId: string
@@ -11,66 +10,63 @@ interface UseRealtimeBookmarksOptions {
   onDelete: (id: string) => void
 }
 
-/**
- * Hook: Subscribes to real-time Postgres changes for the bookmarks table.
- * Filters events by user_id so users only receive their own updates.
- * Handles cleanup on unmount to prevent memory leaks.
- */
 export function useRealtimeBookmarks({
   userId,
   onInsert,
   onDelete,
 }: UseRealtimeBookmarksOptions) {
-  const channelRef = useRef<RealtimeChannel | null>(null)
   const onInsertRef = useRef(onInsert)
   const onDeleteRef = useRef(onDelete)
+  const userIdRef = useRef(userId)
 
-  // Keep refs current without re-subscribing
   useEffect(() => {
     onInsertRef.current = onInsert
     onDeleteRef.current = onDelete
+    userIdRef.current = userId
   })
 
-  const subscribe = useCallback(() => {
+  useEffect(() => {
     const supabase = createClient()
 
-    const channel = supabase
-      .channel(`bookmarks:${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'bookmarks',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          onInsertRef.current(payload.new as Bookmark)
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'bookmarks',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          onDeleteRef.current((payload.old as Bookmark).id)
-        }
-      )
-      .subscribe()
+    console.log('[Realtime] Setting up subscription for user:', userId)
 
-    channelRef.current = channel
+    const channel = supabase
+      .channel('bookmarks-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bookmarks',
+        },
+        (payload) => {
+          console.log('[Realtime] Event received:', payload.eventType, payload)
+
+          if (payload.eventType === 'INSERT') {
+            const bookmark = payload.new as Bookmark
+            if (bookmark.user_id === userIdRef.current) {
+              console.log('[Realtime] INSERT for current user, updating state')
+              onInsertRef.current(bookmark)
+            }
+          }
+
+          if (payload.eventType === 'DELETE') {
+            const deleted = payload.old as Partial<Bookmark>
+            if (deleted.id) {
+              console.log('[Realtime] DELETE received, id:', deleted.id)
+              onDeleteRef.current(deleted.id)
+            }
+          }
+        }
+      )
+      .subscribe((status, err) => {
+        console.log('[Realtime] Status:', status, err ?? '')
+      })
 
     return () => {
+      console.log('[Realtime] Cleaning up subscription')
       supabase.removeChannel(channel)
     }
-  }, [userId])
-
-  useEffect(() => {
-    const cleanup = subscribe()
-    return cleanup
-  }, [subscribe])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 }
