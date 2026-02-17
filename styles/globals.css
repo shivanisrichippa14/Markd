@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-syne: 'Syne', sans-serif;
+  --font-dm: 'DM Sans', sans-serif;
+
+  /* Light theme */
+  --bg-primary: #f8f7f4;
+  --bg-card: #ffffff;
+  --bg-subtle: #f1ede8;
+  --border: #e5e0d8;
+  --text-primary: #1a1714;
+  --text-secondary: #6b6560;
+  --text-muted: #a39e99;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-subtle: #eef2ff;
+  --danger: #ef4444;
+  --danger-subtle: #fef2f2;
+  --success: #22c55e;
+  --success-subtle: #f0fdf4;
+}
+
+.dark {
+  --bg-primary: #0f0e0d;
+  --bg-card: #1a1917;
+  --bg-subtle: #242220;
+  --border: #2e2c29;
+  --text-primary: #f5f2ee;
+  --text-secondary: #9c9893;
+  --text-muted: #5c5955;
+  --accent: #818cf8;
+  --accent-hover: #6366f1;
+  --accent-subtle: #1e1b4b;
+  --danger: #f87171;
+  --danger-subtle: #1f1314;
+  --success: #4ade80;
+  --success-subtle: #0f1f14;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-dm), 'DM Sans', system-ui, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-subtle);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Shimmer skeleton animation */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-subtle) 25%,
+    var(--border) 50%,
+    var(--bg-subtle) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Toast overrides */
+.toast-container {
+  font-family: var(--font-dm), sans-serif !important;
+  font-size: 14px !important;
+}
+
+/* Smooth card transitions */
+.bookmark-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.bookmark-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
