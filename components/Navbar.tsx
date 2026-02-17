@@ -6,13 +6,20 @@ import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { ThemeToggle } from './ThemeToggle'
 
-
 interface NavbarProps {
-  user: { id: string; email?: string; user_metadata: { full_name?: string; avatar_url?: string } }
+  user: {
+    id: string
+    email?: string
+    user_metadata: {
+      full_name?: string
+      avatar_url?: string
+    }
+  }
 }
 
 export function Navbar({ user }: NavbarProps) {
   const [signingOut, setSigningOut] = useState(false)
+  const [imgError, setImgError] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -28,20 +35,14 @@ export function Navbar({ user }: NavbarProps) {
     }
   }
 
-  const avatarUrl = user.user_metadata?.avatar_url as string | undefined
-  const name = (user.user_metadata?.full_name as string | undefined) ?? user.email ?? 'User'
-  const initials = name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
+  const avatarUrl = user.user_metadata?.avatar_url
+  const name = user.user_metadata?.full_name ?? user.email ?? 'User'
+  const initial = (user.email ?? user.user_metadata?.full_name ?? 'U').charAt(0).toUpperCase()
 
   return (
     <header
       className="sticky top-0 z-40 border-b backdrop-blur-md"
       style={{
-        background: 'rgba(var(--bg-card-rgb, 255,255,255), 0.85)',
         borderColor: 'var(--border)',
         backgroundColor: 'color-mix(in srgb, var(--bg-card) 85%, transparent)',
       }}
@@ -67,22 +68,24 @@ export function Navbar({ user }: NavbarProps) {
         <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle />
 
-          {/* User avatar */}
+          {/* User avatar — Google profile photo if available, else initial */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {avatarUrl ? (
+            {avatarUrl && !imgError ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={avatarUrl}
                 alt={name}
-                className="w-8 h-8 rounded-full object-cover ring-2"
-                style={{ ringColor: 'var(--border)' }}
+                referrerPolicy="no-referrer"
+                className="w-8 h-8 rounded-full object-cover"
+                style={{ border: '2px solid var(--border)' }}
+                onError={() => setImgError(true)}
               />
             ) : (
               <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold text-white flex-shrink-0"
                 style={{ background: 'var(--accent)' }}
               >
-                {initials}
+                {initial}
               </div>
             )}
             <span
@@ -93,6 +96,7 @@ export function Navbar({ user }: NavbarProps) {
             </span>
           </div>
 
+          {/* Sign out button */}
           <button
             onClick={handleSignOut}
             disabled={signingOut}
@@ -118,15 +122,13 @@ export function Navbar({ user }: NavbarProps) {
               />
             ) : (
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
             )}
-            <span className="hidden sm:inline">{signingOut ? 'Signing out...' : 'Sign out'}</span>
+            <span className="hidden sm:inline">
+              {signingOut ? 'Signing out...' : 'Sign out'}
+            </span>
           </button>
         </div>
       </div>
