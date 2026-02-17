@@ -1,16 +1,6 @@
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 
-/**
- * Middleware: Protects routes by checking the Supabase session cookie.
- *
- * We use getSession() (reads from cookie) instead of getUser() (hits network)
- * because getUser() makes a server-side HTTP request to Supabase to validate
- * the JWT — which fails if the server cannot reach Supabase's network.
- *
- * getSession() only reads and decodes the local cookie — no network call needed.
- * The session is still validated by Supabase on actual DB queries via RLS.
- */
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -22,7 +12,7 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options?: CookieOptions }[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
@@ -33,33 +23,27 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Use getSession() — reads from cookie only, NO network request to Supabase
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  // Read session from cookie — no network call to Supabase
+  const { data: { session } } = await supabase.auth.getSession()
 
-  const { pathname } = request.nextUrl
+  const isAuthPage = request.nextUrl.pathname.startsWith('/login') ||
+    request.nextUrl.pathname.startsWith('/auth')
 
-  // Allow the auth callback page through always
-  if (pathname.startsWith('/auth')) {
-    return supabaseResponse
+  if (!session && !isAuthPage) {
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = '/login'
+    return NextResponse.redirect(loginUrl)
   }
 
-  // Protect /dashboard — redirect unauthenticated users to /login
-  if (pathname.startsWith('/dashboard') && !session) {
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  // Redirect authenticated users away from /login
-  if (pathname === '/login' && session) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+  if (session && request.nextUrl.pathname === '/login') {
+    const dashboardUrl = request.nextUrl.clone()
+    dashboardUrl.pathname = '/dashboard'
+    return NextResponse.redirect(dashboardUrl)
   }
 
   return supabaseResponse
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }
