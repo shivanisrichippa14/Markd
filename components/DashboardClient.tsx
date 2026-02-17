@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
@@ -8,7 +7,7 @@ import { Navbar } from './Navbar'
 import { BookmarkList } from './BookmarkList'
 import { AddBookmarkForm } from './AddBookmarkForm'
 import type { Bookmark } from '@/lib/types'
-// import type { User } from '@supabase/supabase-js'
+import type { User } from '@supabase/supabase-js'
 
 interface DashboardClientProps {
   userId: string
@@ -16,28 +15,18 @@ interface DashboardClientProps {
   userName: string
   userAvatar: string
 }
-interface NavbarUser {
-  id: string
-  email: string
-  user_metadata: {
-    full_name: string
-    avatar_url: string
-  }
-}
+
 export function DashboardClient({ userId, userEmail, userName, userAvatar }: DashboardClientProps) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
   const [loading, setLoading] = useState(true)
 
-  const user: NavbarUser = {
-  id: userId,
-  email: userEmail,
-  user_metadata: {
-    full_name: userName,
-    avatar_url: userAvatar,
-  },
-}
+  const user = {
+    id: userId,
+    email: userEmail,
+    user_metadata: { full_name: userName, avatar_url: userAvatar },
+  } as User
 
-  // Initial load
+  // Initial load from Supabase
   useEffect(() => {
     const supabase = createClient()
     supabase
@@ -52,23 +41,29 @@ export function DashboardClient({ userId, userEmail, userName, userAvatar }: Das
       })
   }, [userId])
 
-  // Realtime: cross-tab INSERT (same-tab inserts are handled by onBookmarkAdded)
+  // Called by Realtime INSERT — handles BOTH same-tab and cross-tab inserts
   const handleRealtimeInsert = useCallback((newBookmark: Bookmark) => {
     setBookmarks(prev => {
+      // Deduplicate — same-tab optimistic update may have already added it
       if (prev.some(b => b.id === newBookmark.id)) return prev
       return [newBookmark, ...prev]
     })
   }, [])
 
-  // Realtime: cross-tab DELETE
+  // Called by Realtime DELETE — handles cross-tab deletes
   const handleRealtimeDelete = useCallback((id: string) => {
     setBookmarks(prev => prev.filter(b => b.id !== id))
   }, [])
 
-  // Subscribe to realtime at the top level so all state updates happen here
-  useRealtimeBookmarks({ userId, onInsert: handleRealtimeInsert, onDelete: handleRealtimeDelete })
+  // Single realtime subscription at the top level
+  useRealtimeBookmarks({
+    userId,
+    onInsert: handleRealtimeInsert,
+    onDelete: handleRealtimeDelete,
+  })
 
-  // Instant optimistic add — called by AddBookmarkForm right after save
+  // Called by AddBookmarkForm for instant optimistic update in THIS tab
+  // The realtime event will also fire and be deduped — no double-add
   const handleBookmarkAdded = useCallback((newBookmark: Bookmark) => {
     setBookmarks(prev => {
       if (prev.some(b => b.id === newBookmark.id)) return prev
@@ -76,7 +71,7 @@ export function DashboardClient({ userId, userEmail, userName, userAvatar }: Das
     })
   }, [])
 
-  // Optimistic delete — called by BookmarkCard immediately on click
+  // Called by BookmarkCard for instant optimistic delete in THIS tab
   const handleBookmarkDeleted = useCallback((id: string) => {
     setBookmarks(prev => prev.filter(b => b.id !== id))
   }, [])
