@@ -1,95 +1,66 @@
 # Markd — Smart Bookmark Manager
 
-A production-ready, full-stack bookmark management app built with Next.js 14 (App Router), Supabase, and TypeScript. Features real-time sync, Google OAuth, categories, search, sorting, dark mode, and optimistic UI updates.
+A full-stack bookmark manager built with Next.js 14 (App Router), Supabase, and TypeScript. Deployed at **[markd-zypt.vercel.app](https://markd-zypt.vercel.app)**.
 
 ---
 
-## ✨ Features
+## Features
 
-- **Google OAuth** — one-click sign-in via Supabase Auth
-- **Private bookmarks** — enforced via Supabase Row Level Security (RLS)
-- **Real-time sync** — Supabase Realtime Postgres changes; open two tabs and watch them sync instantly
-- **Auto favicon** — fetches website favicon automatically on add
-- **Categories** — tag bookmarks (Work, Personal, Learning, etc.)
-- **Search** — instant client-side search by title or URL
-- **Sort** — newest, oldest, or alphabetical
-- **Dark / Light mode** — persisted in localStorage
-- **Optimistic UI** — deletes are instant; no waiting for server
-- **Skeleton loading** — professional loading states
-- **Copy URL** — one-click clipboard copy
-- **Open in tab** — direct link to bookmark
-- **Empty states** — helpful prompts when no bookmarks
+- **Google OAuth only** — no email/password, one-click sign-in
+- **Private bookmarks** — Row Level Security ensures users only ever see their own data
+- **Real-time sync** — add a bookmark in one tab, it appears in another instantly
+- **Categories** — tag bookmarks as Work, Personal, Learning, etc.
+- **Search & sort** — instant client-side search, sort by newest/oldest/alphabetical
+- **Auto favicon** — fetches website icons automatically
+- **Dark / Light mode** — persisted across sessions
+- **Optimistic UI** — adds and deletes feel instant before server confirms
 
 ---
 
-## 🧱 Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
 | Framework | Next.js 14 (App Router) |
 | Language | TypeScript (strict) |
 | Auth | Supabase Auth + Google OAuth |
-| Database | Supabase Postgres |
-| Realtime | Supabase Realtime |
-| Styling | Tailwind CSS + CSS Variables |
-| Notifications | react-hot-toast |
+| Database | Supabase Postgres + RLS |
+| Real-time | Supabase Realtime + polling fallback |
+| Styling | Tailwind CSS + CSS variables |
 | Deployment | Vercel |
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
-smart-bookmark-app/
 ├── app/
-│   ├── layout.tsx              # Root layout with Toaster
-│   ├── page.tsx                # Redirect root → /dashboard or /login
-│   ├── login/page.tsx          # Google OAuth login page
-│   ├── dashboard/
-│   │   ├── page.tsx            # Server Component — fetches initial bookmarks
-│   │   ├── loading.tsx         # Skeleton UI
-│   │   └── error.tsx           # Error boundary
-│   └── auth/callback/route.ts  # OAuth callback handler
-│
+│   ├── page.tsx                  # Redirects to /dashboard or /login
+│   ├── login/page.tsx            # Google OAuth login
+│   ├── dashboard/page.tsx        # Protected dashboard (server component)
+│   └── auth/callback/page.tsx   # OAuth callback handler (client-side)
 ├── components/
-│   ├── Navbar.tsx              # Top navigation with user info & sign-out
-│   ├── AddBookmarkForm.tsx     # Collapsible form with server action
-│   ├── BookmarkList.tsx        # Client component with realtime + filtering
-│   ├── BookmarkCard.tsx        # Individual bookmark card
-│   ├── SearchBar.tsx           # Search input
-│   ├── CategoryFilter.tsx      # Category pill filters
-│   ├── SortDropdown.tsx        # Sort selector
-│   └── ThemeToggle.tsx         # Dark/light mode toggle
-│
-├── lib/
-│   ├── supabaseClient.ts       # Browser Supabase client
-│   ├── supabaseServer.ts       # Server Supabase client (cookies)
-│   ├── serverActions.ts        # addBookmark + deleteBookmark
-│   ├── validators.ts           # URL validation, sanitization, favicon
-│   └── types.ts                # TypeScript types
-│
+│   ├── DashboardClient.tsx       # Owns bookmark state + realtime subscription
+│   ├── AddBookmarkForm.tsx       # Add bookmark form
+│   ├── BookmarkList.tsx          # Search, filter, sort
+│   ├── BookmarkCard.tsx          # Individual card with delete
+│   └── Navbar.tsx                # Google profile photo + sign out
 ├── hooks/
-│   └── useRealtimeBookmarks.ts # Supabase Realtime subscription
-│
-├── middleware.ts               # Route protection (auth guard)
-└── styles/globals.css          # CSS variables + global styles
+│   └── useRealtimeBookmarks.ts  # WebSocket + polling fallback
+├── lib/
+│   ├── supabaseClient.ts         # Browser client (singleton, cookie storage)
+│   ├── supabaseServer.ts         # Server client
+│   ├── clientActions.ts          # Browser-side add/delete (bypasses server)
+│   └── validators.ts             # URL validation, XSS sanitization
+└── middleware.ts                 # Route protection
 ```
 
 ---
 
-## 🗄️ Supabase Setup
-
-### 1. Create a Supabase Project
-
-Go to [supabase.com](https://supabase.com) → New Project.
-
-### 2. Run this SQL in the Supabase SQL Editor
+## Database Schema
 
 ```sql
--- ============================================
--- TABLE: bookmarks
--- ============================================
-CREATE TABLE IF NOT EXISTS bookmarks (
+CREATE TABLE bookmarks (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   title       TEXT NOT NULL,
@@ -99,198 +70,126 @@ CREATE TABLE IF NOT EXISTS bookmarks (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ============================================
--- INDEXES for performance
--- ============================================
-CREATE INDEX IF NOT EXISTS bookmarks_user_id_idx  ON bookmarks(user_id);
-CREATE INDEX IF NOT EXISTS bookmarks_created_at_idx ON bookmarks(created_at DESC);
-
--- ============================================
--- ROW LEVEL SECURITY
--- ============================================
 ALTER TABLE bookmarks ENABLE ROW LEVEL SECURITY;
 
--- Users can only SELECT their own bookmarks
-CREATE POLICY "Users can view own bookmarks"
-  ON bookmarks FOR SELECT
-  USING (auth.uid() = user_id);
+CREATE POLICY "Users can view own bookmarks"   ON bookmarks FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own bookmarks" ON bookmarks FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete own bookmarks" ON bookmarks FOR DELETE USING (auth.uid() = user_id);
 
--- Users can only INSERT bookmarks for themselves
-CREATE POLICY "Users can insert own bookmarks"
-  ON bookmarks FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
--- Users can only DELETE their own bookmarks
-CREATE POLICY "Users can delete own bookmarks"
-  ON bookmarks FOR DELETE
-  USING (auth.uid() = user_id);
-
--- ============================================
--- REALTIME — enable for the bookmarks table
--- ============================================
 ALTER PUBLICATION supabase_realtime ADD TABLE bookmarks;
-```
-
-### 3. Enable Google OAuth in Supabase
-
-1. Go to **Authentication → Providers → Google**
-2. Enable Google OAuth
-3. Add your **Google Client ID** and **Client Secret** (from [Google Cloud Console](https://console.cloud.google.com))
-4. Add authorized redirect URI: `https://<your-supabase-project>.supabase.co/auth/v1/callback`
-
-### 4. Configure allowed redirect URLs
-
-In Supabase → **Authentication → URL Configuration**:
-- Site URL: `https://your-domain.vercel.app`
-- Redirect URLs: `https://your-domain.vercel.app/auth/callback`
-
-For local dev, also add: `http://localhost:3000/auth/callback`
-
----
-
-## ⚙️ Environment Variables
-
-Create a `.env.local` file in the project root:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
-```
-
-> ⚠️ **Never** use the `service_role` key in the client. The anon key + RLS is all you need.
-
----
-
-## 🚀 Local Development
-
-```bash
-# Install dependencies
-npm install
-
-# Run development server
-npm run dev
-
-# Open in browser
-open http://localhost:3000
+ALTER TABLE bookmarks REPLICA IDENTITY FULL;
 ```
 
 ---
 
-## 🔐 Security Architecture
+## Problems I Ran Into and How I Solved Them
 
-### Row Level Security (RLS)
+### 1. PKCE OAuth flow failing — "code verifier not found in storage"
 
-RLS is enabled on the `bookmarks` table. Every query is automatically scoped to the authenticated user:
+**Problem:** After clicking "Continue with Google" and being redirected back, the app showed "Sign-in failed: PKCE code verifier not found in storage." The PKCE flow stores a `code_verifier` in localStorage before redirecting to Google, but a full-page navigation (`window.location.href`) caused the browser to lose it.
 
-```sql
--- auth.uid() returns the JWT user ID — Supabase injects this automatically
-USING (auth.uid() = user_id)
-```
-
-This means:
-- Even if a user guesses another user's bookmark ID, the query returns nothing
-- The service role key is never exposed to the client
-- Server Actions double-check `user_id = user.id` for defence-in-depth
-
-### Input Sanitization
-
-- Titles are HTML-escaped server-side to prevent XSS
-- URLs are validated to `http://` or `https://` scheme only
-- Max title length: 200 characters
-
----
-
-## ⚡ Real-Time Architecture
-
-Real-time updates use Supabase's Postgres Replication pipeline:
-
-```
-Postgres WAL → Supabase Realtime → WebSocket → Client
-```
-
-Implementation in `hooks/useRealtimeBookmarks.ts`:
+**Solution:** Two changes fixed this:
+1. Switched the Supabase browser client to use **`document.cookie`** instead of localStorage for the PKCE verifier — cookies survive full redirects.
+2. Used `skipBrowserRedirect: true` in `signInWithOAuth` to get the OAuth URL first, then navigated manually. This gave us control over when the redirect happened.
 
 ```typescript
-supabase
-  .channel(`bookmarks:${userId}`)
-  .on('postgres_changes', {
-    event: 'INSERT',
-    schema: 'public',
-    table: 'bookmarks',
-    filter: `user_id=eq.${userId}`,  // Only receive own events
-  }, (payload) => {
-    onInsert(payload.new as Bookmark)
-  })
-  .on('postgres_changes', { event: 'DELETE', ... }, ...)
-  .subscribe()
+const { data } = await supabase.auth.signInWithOAuth({
+  provider: 'google',
+  options: { skipBrowserRedirect: true, redirectTo: `${origin}/auth/callback` }
+})
+window.location.href = data.url  // Navigate after verifier is stored
 ```
-
-Key design decisions:
-- **Filtered by `user_id`** — users only receive their own events
-- **Deduplication** — realtime INSERT is deduplicated against optimistic updates
-- **Cleanup on unmount** — `supabase.removeChannel(channel)` prevents memory leaks
-- **Stable refs** — callbacks stored in refs so the subscription never needs to resubscribe
 
 ---
 
-## 🌐 Deployment to Vercel
+### 2. Server can't reach Supabase — `ConnectTimeoutError`
 
-### 1. Push to GitHub
+**Problem:** The Next.js server (running locally and on certain networks) couldn't reach `supabase.co` on port 443. This caused `getUser()`, `exchangeCodeForSession()`, and all server-side Supabase calls to timeout after 10 seconds, making every page load slow or broken.
+
+**Solution:** Moved everything that required a Supabase network call to the **browser side**:
+- OAuth callback: made it a client component so `exchangeCodeForSession` runs in the browser (which can always reach Supabase)
+- Dashboard data fetching: moved to a `useEffect` in a client component
+- Add/delete actions: replaced Server Actions with `clientActions.ts` that call Supabase directly from the browser
+- Auth checks: switched from `getUser()` (network call) to `getSession()` (reads cookie, no network needed)
+
+---
+
+### 3. Real-time WebSocket blocked — `Status: TIMED_OUT`
+
+**Problem:** Supabase Realtime uses WebSockets (`wss://`). On restricted networks (corporate WiFi, certain ISPs), the WebSocket connection timed out immediately, meaning cross-tab sync didn't work.
+
+**Solution:** Implemented a **dual-strategy approach** in `useRealtimeBookmarks.ts`:
+
+```typescript
+// Strategy 1: WebSocket (instant when available)
+supabase.channel('bookmarks-realtime')
+  .on('postgres_changes', { event: '*', table: 'bookmarks' }, handler)
+  .subscribe()
+
+// Strategy 2: Polling every 3 seconds (works everywhere)
+setInterval(async () => {
+  const { data } = await supabase.from('bookmarks').select('*').eq('user_id', userId)
+  // Compare against lastKnownIds — fire onInsert/onDelete for any differences
+}, 3000)
+```
+
+Both run simultaneously. WebSocket fires instantly when it works; polling catches anything it misses. This guarantees cross-tab sync on every network.
+
+---
+
+### 4. TypeScript strict mode failing on Vercel but not locally
+
+**Problem:** Local `npm run dev` passed, but Vercel's production build failed with TypeScript errors:
+- `'cookiesToSet' implicitly has an 'any' type` in `supabaseServer.ts` and `middleware.ts`
+- `Conversion of type '...' to type 'User' may be a mistake` in `DashboardClient.tsx`
+- `Set<string> can only be iterated through when using --downlevelIteration flag`
+
+**Solution:**
+1. Added explicit `CookieOptions` type annotation to `cookiesToSet` parameters
+2. Replaced the `as User` cast with a minimal inline interface that only includes the fields actually used
+3. Replaced `for...of` on `Set` with `Object.keys().forEach()` to avoid ES2015 iteration requirements
+
+---
+
+### 5. Bookmarks not appearing immediately after adding
+
+**Problem:** Clicking "Save bookmark" saved to Supabase but the new card didn't appear in the list — only after a page refresh.
+
+**Root cause:** `AddBookmarkForm` and `BookmarkList` each had their own isolated state with no way to communicate.
+
+**Solution:** Lifted state up to `DashboardClient` which owns the `bookmarks[]` array. `AddBookmarkForm` receives an `onBookmarkAdded` callback and calls it with the new bookmark immediately after save. Deduplication ensures the realtime event doesn't double-add it:
+
+```typescript
+const handleBookmarkAdded = (newBookmark: Bookmark) => {
+  setBookmarks(prev => {
+    if (prev.some(b => b.id === newBookmark.id)) return prev  // dedupe
+    return [newBookmark, ...prev]
+  })
+}
+```
+
+---
+
+## Local Setup
 
 ```bash
-git init
-git add .
-git commit -m "Initial commit"
-git remote add origin https://github.com/your-username/smart-bookmark-app.git
-git push -u origin main
+git clone https://github.com/shivanisrichippa14/Markd.git
+cd Markd
+npm install
+
+# Create .env.local
+echo "NEXT_PUBLIC_SUPABASE_URL=your_url" >> .env.local
+echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key" >> .env.local
+
+npm run dev
 ```
 
-### 2. Import to Vercel
-
-1. Go to [vercel.com](https://vercel.com) → Import Project
-2. Select your GitHub repository
-3. Add environment variables:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-4. Click **Deploy**
-
-### 3. Update Supabase redirect URLs
-
-After deployment, add your Vercel URL to Supabase:
-- Site URL: `https://your-app.vercel.app`
-- Redirect URL: `https://your-app.vercel.app/auth/callback`
-
 ---
 
-## 🧠 Architecture Decisions
+## Security
 
-| Decision | Reason |
-|----------|--------|
-| App Router Server Components | Better performance, streaming, no client bundle for static data |
-| Server Actions for mutations | Type-safe, no API routes needed, integrated with `useTransition` |
-| Client component for BookmarkList | Required for realtime subscription and interactive state |
-| CSS variables for theming | Dark mode without Tailwind's `dark:` class repetition; simpler |
-| Google S2 favicon service | No server-side scraping needed, fast, reliable |
-| Optimistic deletes | Perceived performance — UX feels instant |
-
----
-
-## 🐛 Challenges & Solutions
-
-### Challenge 1: Session not refreshing after OAuth redirect
-**Solution**: Middleware calls `supabase.auth.getUser()` on every request. This triggers token refresh via `setAll` on cookies, keeping the session alive across Server Components.
-
-### Challenge 2: Realtime events duplicating with optimistic updates
-**Solution**: Before inserting a realtime INSERT event into state, we check `prev.some(b => b.id === newBookmark.id)`. Since the optimistic update happens before realtime fires, duplicates are cleanly skipped.
-
-### Challenge 3: Dark mode flash on page load (FOUC)
-**Solution**: Inline `<script>` in `<head>` reads `localStorage` and applies `.dark` class to `<html>` before React hydrates, preventing the flash.
-
-### Challenge 4: Server Actions with `useTransition`
-**Solution**: Wrapped server action calls in `startTransition`. This keeps the UI interactive during the pending state and enables the `isPending` flag for loading UI without extra state.
-
----
-
-## 📄 License
-
-MIT
+- **RLS policies** enforce `auth.uid() = user_id` on every query — no user can read or delete another user's bookmarks even with direct API access
+- **PKCE flow** for OAuth — authorization codes can't be intercepted
+- **URL validation** restricts to `http://https://` only
+- **Title sanitization** prevents XSS
+- **Anon key only** exposed to client — service role key never used
