@@ -5,10 +5,19 @@ import { createClient } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { ThemeToggle } from './ThemeToggle'
-import type { User } from '@supabase/supabase-js'
+// import type { User } from '@supabase/supabase-js'
+
+interface NavbarUser {
+  id: string
+  email: string
+  user_metadata: {
+    full_name: string
+    avatar_url: string
+  }
+}
 
 interface NavbarProps {
-  user: User
+  user: NavbarUser
 }
 
 export function Navbar({ user }: NavbarProps) {
