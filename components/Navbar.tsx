@@ -83,8 +83,8 @@ export function Navbar({ user }: NavbarProps) {
               <img
                 src={avatarUrl}
                 alt={name}
-                className="w-8 h-8 rounded-full object-cover ring-2"
-                style={{ ringColor: 'var(--border)' }}
+                
+                className="w-8 h-8 rounded-full object-cover ring-2 ring-border"
               />
             ) : (
               <div
