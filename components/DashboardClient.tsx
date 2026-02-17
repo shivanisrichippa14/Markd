@@ -7,7 +7,7 @@ import { Navbar } from './Navbar'
 import { BookmarkList } from './BookmarkList'
 import { AddBookmarkForm } from './AddBookmarkForm'
 import type { Bookmark } from '@/lib/types'
-import type { User } from '@supabase/supabase-js'
+// We use a minimal user shape for the Navbar — no need for the full User type
 
 interface DashboardClientProps {
   userId: string
@@ -24,7 +24,7 @@ export function DashboardClient({ userId, userEmail, userName, userAvatar }: Das
     id: userId,
     email: userEmail,
     user_metadata: { full_name: userName, avatar_url: userAvatar },
-  } as User
+  }
 
   // Initial load from Supabase
   useEffect(() => {
