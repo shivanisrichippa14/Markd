@@ -98,12 +98,12 @@ export function useRealtimeBookmarks({
       }
 
       // Detect DELETEs — IDs in last but not in current
-      for (const id of lastKnownIds) {
+      lastKnownIds.forEach((id) => {
         if (!currentIds.has(id)) {
           console.log('[Polling] Detected deleted bookmark:', id)
           onDeleteRef.current(id)
         }
-      }
+      })
 
       lastKnownIds = currentIds
     }
