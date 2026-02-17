@@ -1,15 +1,15 @@
 import { createBrowserClient } from '@supabase/ssr'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
-/**
- * Browser Supabase client with cookie-based storage.
- *
- * WHY COOKIES: signInWithOAuth stores the PKCE code_verifier before
- * redirecting to Google. If we use the default localStorage, it can
- * be lost during navigation in some environments. Storing it in
- * document.cookie ensures it persists through the full redirect cycle.
- */
+// Singleton — reuse the same client instance across the app
+// This is critical for Realtime: multiple instances = multiple connections
+// that may conflict or not receive events properly
+let client: SupabaseClient | null = null
+
 export function createClient() {
-  return createBrowserClient(
+  if (client) return client
+
+  client = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -27,8 +27,7 @@ export function createClient() {
           if (typeof document === 'undefined') return
           let cookie = `${name}=${encodeURIComponent(value)}`
           if (options?.maxAge) cookie += `; Max-Age=${options.maxAge}`
-          if (options?.path) cookie += `; Path=${options.path}`
-          else cookie += `; Path=/`
+          cookie += `; Path=${options?.path ?? '/'}`
           if (options?.sameSite) cookie += `; SameSite=${options.sameSite}`
           if (options?.secure) cookie += `; Secure`
           document.cookie = cookie
@@ -40,4 +39,6 @@ export function createClient() {
       },
     }
   )
+
+  return client
 }
